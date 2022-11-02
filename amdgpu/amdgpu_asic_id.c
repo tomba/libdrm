@@ -112,12 +112,23 @@ void amdgpu_parse_asic_ids(struct amdgpu_device *dev)
 	ssize_t n;
 	int line_num = 1;
 	int r = 0;
+	const char *amdgpu_asic_id_table_path;
 
 	fp = fopen(AMDGPU_ASIC_ID_TABLE, "r");
 	if (!fp) {
 		fprintf(stderr, "%s: %s\n", AMDGPU_ASIC_ID_TABLE,
 			strerror(errno));
-		return;
+		amdgpu_asic_id_table_path = getenv("AMDGPU_ASIC_ID_TABLE_PATH");
+		if (amdgpu_asic_id_table_path == NULL) {
+			fprintf(stderr, "AMDGPU_ASIC_ID_TABLE_PATH undefined.\n");
+			return;
+		}
+		fp = fopen(amdgpu_asic_id_table_path, "r");
+		if (!fp) {
+			fprintf(stderr, "%s: %s\n", amdgpu_asic_id_table_path,
+				strerror(errno));
+			return;
+		}
 	}
 
 	/* 1st valid line is file version */

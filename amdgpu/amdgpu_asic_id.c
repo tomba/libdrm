@@ -119,7 +119,7 @@ void amdgpu_parse_asic_ids(struct amdgpu_device *dev)
 		amdgpu_asic_id_table_path = AMDGPU_ASIC_ID_TABLE;
 	fp = fopen(amdgpu_asic_id_table_path, "r");
 	if (!fp) {
-		fprintf(stderr, "%s: %s\n", AMDGPU_ASIC_ID_TABLE,
+		fprintf(stderr, "%s: %s\n", amdgpu_asic_id_table_path,
 			strerror(errno));
 		return;
 	}

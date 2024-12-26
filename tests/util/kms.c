@@ -97,6 +97,7 @@ const char *util_lookup_connector_status_name(unsigned int status)
 }
 
 static const char * const modules[] = {
+	"xe",
 	"i915",
 	"amdgpu",
 	"radeon",

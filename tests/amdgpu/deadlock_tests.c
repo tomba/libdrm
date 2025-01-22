@@ -490,7 +490,7 @@ static void bad_access_helper(int reg_access)
 
 	r = amdgpu_cs_query_fence_status(&fence_status,
 			AMDGPU_TIMEOUT_INFINITE,0, &expired);
-	CU_ASSERT_EQUAL((r == 0 || r == -ECANCELED), 1);
+	CU_ASSERT_EQUAL((r == -ETIME || r == -ECANCELED), 1);
 
 	r = amdgpu_bo_list_destroy(bo_list);
 	CU_ASSERT_EQUAL(r, 0);

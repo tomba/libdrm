@@ -162,6 +162,11 @@ bo_create(int fd, unsigned int format,
 		bpp = 10;
 		break;
 
+	case DRM_FORMAT_X403:
+		pixels_per_container = 3;
+		bpp = 32;
+		break;
+
 	case DRM_FORMAT_ARGB4444:
 	case DRM_FORMAT_XRGB4444:
 	case DRM_FORMAT_ABGR4444:
@@ -251,6 +256,7 @@ bo_create(int fd, unsigned int format,
 	case DRM_FORMAT_NV30:
 	case DRM_FORMAT_YUV444:
 	case DRM_FORMAT_YVU444:
+	case DRM_FORMAT_X403:
 		is_planar = true;
 		xsub = 1;
 		ysub = 1;
@@ -322,6 +328,7 @@ bo_create(int fd, unsigned int format,
 	case DRM_FORMAT_YVU422:
 	case DRM_FORMAT_YUV444:
 	case DRM_FORMAT_YVU444:
+	case DRM_FORMAT_X403:
 		offsets[0] = 0;
 		handles[0] = bo->handle;
 		pitches[0] = bo->pitch;

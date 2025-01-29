@@ -116,13 +116,16 @@ bo_create(int fd, unsigned int format,
 	  unsigned int handles[4], unsigned int pitches[4],
 	  unsigned int offsets[4], enum util_fill_pattern pattern)
 {
-	unsigned int virtual_height, xsub, ysub;
+	unsigned int virtual_width, virtual_height, xsub, ysub;
+	unsigned int pixels_per_container;
 	struct bo *bo;
 	unsigned int bpp;
 	bool is_planar;
 	void *planes[3] = { 0, };
 	void *virtual;
 	int ret;
+
+	pixels_per_container = 1;
 
 	switch (format) {
 	case DRM_FORMAT_C1:
@@ -260,11 +263,13 @@ bo_create(int fd, unsigned int format,
 		break;
 	}
 
+	virtual_width = width / pixels_per_container;
+
 	virtual_height = height;
 	if (is_planar)
 		virtual_height += height * 2 / xsub / ysub;
 
-	bo = bo_create_dumb(fd, width, virtual_height, bpp);
+	bo = bo_create_dumb(fd, virtual_width, virtual_height, bpp);
 	if (!bo)
 		return NULL;
 

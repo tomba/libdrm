@@ -141,6 +141,7 @@ bo_create(int fd, unsigned int format,
 		break;
 
 	case DRM_FORMAT_C8:
+	case DRM_FORMAT_Y8:
 	case DRM_FORMAT_NV12:
 	case DRM_FORMAT_NV21:
 	case DRM_FORMAT_NV16:
@@ -156,6 +157,7 @@ bo_create(int fd, unsigned int format,
 		bpp = 8;
 		break;
 
+	case DRM_FORMAT_Y10_P32:
 	case DRM_FORMAT_NV15:
 	case DRM_FORMAT_NV20:
 	case DRM_FORMAT_NV30:
@@ -396,6 +398,8 @@ bo_create(int fd, unsigned int format,
 	case DRM_FORMAT_XBGR16161616F:
 	case DRM_FORMAT_ARGB16161616F:
 	case DRM_FORMAT_ABGR16161616F:
+	case DRM_FORMAT_Y8:
+	case DRM_FORMAT_Y10_P32:
 		offsets[0] = 0;
 		handles[0] = bo->handle;
 		pitches[0] = bo->pitch;

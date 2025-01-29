@@ -184,6 +184,156 @@ static uint16_t uint16_div_64k_to_half(uint16_t v)
 	 shiftcolor16(&(rgb)->blue, uint16_div_64k_to_half((b) << 6)) | \
 	 shiftcolor16(&(rgb)->alpha, uint16_div_64k_to_half((a) << 6)))
 
+static void fill_smpte_grey(const struct util_yuv_info *yuv,
+			    unsigned char *y_mem, unsigned int width,
+			    unsigned int height, unsigned int stride, int depth)
+{
+	const struct color_yuv colors_top[] = {
+		MAKE_YUV_601(191, 192, 192),	/* grey */
+		MAKE_YUV_601(192, 192, 0),	/* yellow */
+		MAKE_YUV_601(0, 192, 192),	/* cyan */
+		MAKE_YUV_601(0, 192, 0),	/* green */
+		MAKE_YUV_601(192, 0, 192),	/* magenta */
+		MAKE_YUV_601(192, 0, 0),	/* red */
+		MAKE_YUV_601(0, 0, 192),	/* blue */
+	};
+	const struct color_yuv colors_middle[] = {
+		MAKE_YUV_601(0, 0, 192),	/* blue */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(192, 0, 192),	/* magenta */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(0, 192, 192),	/* cyan */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(192, 192, 192),	/* grey */
+	};
+	const struct color_yuv colors_bottom[] = {
+		MAKE_YUV_601(0, 33, 76),	/* in-phase */
+		MAKE_YUV_601(255, 255, 255),	/* super white */
+		MAKE_YUV_601(50, 0, 106),	/* quadrature */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(9, 9, 9),		/* 3.5% */
+		MAKE_YUV_601(19, 19, 19),	/* 7.5% */
+		MAKE_YUV_601(29, 29, 29),	/* 11.5% */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+	};
+	unsigned int x;
+	unsigned int y;
+
+	for (y = 0; y < height * 6 / 9; ++y) {
+		for (x = 0; x < width; ++x)
+			y_mem[x] = colors_top[x * 7 / width].y;
+		y_mem += stride;
+	}
+
+	for (; y < height * 7 / 9; ++y) {
+		for (x = 0; x < width; ++x)
+			y_mem[x] = colors_middle[x * 7 / width].y;
+		y_mem += stride;
+	}
+
+	for (; y < height; ++y) {
+		for (x = 0; x < width * 5 / 7; ++x)
+			y_mem[x] = colors_bottom[x * 4 / (width * 5 / 7)].y;
+		for (; x < width * 6 / 7; ++x)
+			y_mem[x] = colors_bottom[(x - width * 5 / 7) * 3 /
+							 (width / 7) +
+						 4]
+					   .y;
+		for (; x < width; ++x)
+			y_mem[x] = colors_bottom[7].y;
+		y_mem += stride;
+	}
+}
+
+static void fill_smpte_grey_10b(const struct util_yuv_info *yuv,
+				unsigned char *mem, unsigned int width,
+				unsigned int height, unsigned int stride,
+				int depth)
+{
+	const struct color_yuv colors_top[] = {
+		MAKE_YUV_601(191, 192, 192),	/* grey */
+		MAKE_YUV_601(192, 192, 0),	/* yellow */
+		MAKE_YUV_601(0, 192, 192),	/* cyan */
+		MAKE_YUV_601(0, 192, 0),	/* green */
+		MAKE_YUV_601(192, 0, 192),	/* magenta */
+		MAKE_YUV_601(192, 0, 0),	/* red */
+		MAKE_YUV_601(0, 0, 192),	/* blue */
+	};
+	const struct color_yuv colors_middle[] = {
+		MAKE_YUV_601(0, 0, 192),	/* blue */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(192, 0, 192),	/* magenta */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(0, 192, 192),	/* cyan */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(192, 192, 192),	/* grey */
+	};
+	const struct color_yuv colors_bottom[] = {
+		MAKE_YUV_601(0, 33, 76),	/* in-phase */
+		MAKE_YUV_601(255, 255, 255),	/* super white */
+		MAKE_YUV_601(50, 0, 106),	/* quadrature */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(9, 9, 9),		/* 3.5% */
+		MAKE_YUV_601(19, 19, 19),	/* 7.5% */
+		MAKE_YUV_601(29, 29, 29),	/* 11.5% */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+	};
+	unsigned int x;
+	unsigned int y;
+
+	for (y = 0; y < height * 6 / 9; ++y) {
+		for (x = 0; x < width; x += 3)
+			((unsigned int *)mem)[x / 3] =
+				colors_top[x * 7 / width].y << 2 |
+				colors_top[(x + 1) * 7 / width].y << 12 |
+				colors_top[(x + 2) * 7 / width].y << 22;
+		mem += stride;
+	}
+
+	for (; y < height * 7 / 9; ++y) {
+		for (x = 0; x < width; x += 3)
+			((uint32_t *)mem)[x / 3] =
+				colors_middle[x * 7 / width].y << 2 |
+				colors_middle[(x + 1) * 7 / width].y << 12 |
+				colors_middle[(x + 2) * 7 / width].y << 22;
+		mem += stride;
+	}
+
+	for (; y < height; ++y) {
+		for (x = 0; x < width * 5 / 7; x += 3)
+			((uint32_t *)mem)[x / 3] =
+				colors_bottom[x * 4 / (width * 5 / 7)].y << 2 |
+				colors_bottom[(x + 1) * 4 / (width * 5 / 7)].y
+					<< 12 |
+				colors_bottom[(x + 2) * 4 / (width * 5 / 7)].y
+					<< 22;
+
+		for (; x < width * 6 / 7; x += 3)
+			((uint32_t *)mem)[x / 3] =
+				colors_bottom[(x - width * 5 / 7) * 3 /
+						      (width / 7) +
+					      4]
+						.y
+					<< 2 |
+				colors_bottom[((x + 1) - width * 5 / 7) * 3 /
+						      (width / 7) +
+					      4]
+						.y
+					<< 12 |
+				colors_bottom[((x + 2) - width * 5 / 7) * 3 /
+						      (width / 7) +
+					      4]
+						.y
+					<< 22;
+
+		for (; x < width; x += 3)
+			((uint32_t *)mem)[x / 3] = colors_bottom[7].y << 2 |
+						   colors_bottom[7].y << 12 |
+						   colors_bottom[7].y << 22;
+		mem += stride;
+	}
+}
+
 static void fill_smpte_yuv_planar(const struct util_yuv_info *yuv,
 				  unsigned char *y_mem, unsigned char *u_mem,
 				  unsigned char *v_mem, unsigned int width,
@@ -1752,6 +1902,14 @@ static void fill_smpte(const struct util_format_info *info, void *planes[3],
 		return fill_smpte_c4(planes[0], width, height, stride);
 	case DRM_FORMAT_C8:
 		return fill_smpte_c8(planes[0], width, height, stride);
+
+	case DRM_FORMAT_Y8:
+		return fill_smpte_grey(&info->yuv, planes[0], width, height,
+				       stride, 8);
+	case DRM_FORMAT_Y10_P32:
+		return fill_smpte_grey_10b(&info->yuv, planes[0], width, height,
+					   stride, 10);
+
 	case DRM_FORMAT_UYVY:
 	case DRM_FORMAT_VYUY:
 	case DRM_FORMAT_YUYV:

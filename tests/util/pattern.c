@@ -659,6 +659,326 @@ static void fill_tiles_x403(const struct util_format_info *info,
 	}
 }
 
+static void fill_smpte_yuv_semiplanar_10b(const struct util_yuv_info *yuv,
+					  unsigned char *y_mem,
+					  unsigned char *uv_mem,
+					  unsigned int width,
+					  unsigned int height,
+					  unsigned int stride)
+{
+	const struct color_yuv colors_top[] = {
+		MAKE_YUV_601(191, 192, 192),	/* grey */
+		MAKE_YUV_601(192, 192, 0),	/* yellow */
+		MAKE_YUV_601(0, 192, 192),	/* cyan */
+		MAKE_YUV_601(0, 192, 0),	/* green */
+		MAKE_YUV_601(192, 0, 192),	/* magenta */
+		MAKE_YUV_601(192, 0, 0),	/* red */
+		MAKE_YUV_601(0, 0, 192),	/* blue */
+	};
+	const struct color_yuv colors_middle[] = {
+		MAKE_YUV_601(0, 0, 192),	/* blue */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(192, 0, 192),	/* magenta */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(0, 192, 192),	/* cyan */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(192, 192, 192),	/* grey */
+	};
+	const struct color_yuv colors_bottom[] = {
+		MAKE_YUV_601(0, 33, 76),	/* in-phase */
+		MAKE_YUV_601(255, 255, 255),	/* super white */
+		MAKE_YUV_601(50, 0, 106),	/* quadrature */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+		MAKE_YUV_601(9, 9, 9),		/* 3.5% */
+		MAKE_YUV_601(19, 19, 19),	/* 7.5% */
+		MAKE_YUV_601(29, 29, 29),	/* 11.5% */
+		MAKE_YUV_601(19, 19, 19),	/* black */
+	};
+	unsigned int cs = yuv->chroma_stride;
+	unsigned int xsub = yuv->xsub;
+	unsigned int ysub = yuv->ysub;
+	unsigned int x;
+	unsigned int y;
+	unsigned int cval = 0;
+
+	for (y = 0; y < height * 6 / 9; ++y) {
+		for (x = 0; x < width; x += 3)
+			((unsigned int *)y_mem)[x/3] =
+				colors_top[x * 7 / width].y << 2 |
+				colors_top[(x+1) * 7 / width].y << 12 |
+				colors_top[(x+2) * 7 / width].y << 22;
+		y_mem += stride;
+	}
+
+	for (; y < height * 7 / 9; ++y) {
+		for (x = 0; x < width; x += 3)
+			((unsigned int *)y_mem)[x/3] =
+				colors_middle[x * 7 / width].y << 2 |
+				colors_middle[(x+1) * 7 / width].y << 12 |
+				colors_middle[(x+2) * 7 / width].y << 22;
+		y_mem += stride;
+	}
+
+	for (; y < height; ++y) {
+		for (x = 0; x < width * 5 / 7; x += 3)
+			((unsigned int *)y_mem)[x/3] =
+				colors_bottom[x * 4 / (width * 5 / 7)].y << 2 |
+				colors_bottom[(x + 1) * 4 / (width * 5 / 7)]
+				.y << 12 | colors_bottom[(x + 2) * 4 /
+				(width * 5 / 7)].y << 22;
+
+		for (; x < width * 6 / 7; x += 3)
+			((unsigned int *)y_mem)[x/3] =
+				colors_bottom[(x - width * 5 / 7) * 3 /
+				(width / 7) + 4].y << 2 |
+				colors_bottom[((x + 1) - width * 5 / 7) * 3 /
+				(width / 7) + 4].y << 12 |
+				colors_bottom[((x + 2) - width * 5 / 7) * 3 /
+				(width / 7) + 4].y << 22;
+
+		for (; x < width; x += 3)
+			((unsigned int *)y_mem)[x/3] = colors_bottom[7].y << 2 |
+				colors_bottom[7].y << 12 |
+				colors_bottom[7].y << 22;
+		y_mem += stride;
+	}
+
+	/* Chroma */
+	unsigned int *c_mem = (unsigned int *)uv_mem;
+
+	for (y = 0; y < height / ysub * 6 / 9; ++y) {
+		for (x = 0; x < width; x += 6) {
+			cval = (colors_top[x * 7 / width].u << 2) |
+				(colors_top[x * 7 / width].v << 12) |
+				(colors_top[(x + 2) * 7 / width].u << 22);
+			c_mem[x/3] = cval;
+			cval = (colors_top[(x + 2) * 7 / width].v << 2) |
+				(colors_top[(x + 4) * 7 / width].u << 12) |
+				(colors_top[(x + 4) * 7 / width].v << 22);
+			c_mem[x/3 + 1] = cval;
+		}
+		c_mem += (stride/4) * cs / xsub;
+	}
+
+	for (; y < height / ysub * 7 / 9; ++y) {
+		for (x = 0; x < width; x += 6) {
+			cval =  (colors_middle[x * 7 / width].u << 2) |
+				(colors_middle[x * 7 / width].v << 12) |
+				(colors_middle[(x + 2) * 7 / width].u << 22);
+			c_mem[x/3] = cval;
+			cval = (colors_middle[(x + 2) * 7 / width].v << 2) |
+				(colors_middle[(x + 4) * 7 / width].u << 12) |
+				(colors_middle[(x + 4) * 7 / width].v << 22);
+			c_mem[x/3 + 1] = cval;
+		}
+		c_mem += (stride/4) * cs / xsub;
+	}
+
+	for (; y < height / ysub; ++y) {
+		for (x = 0; x < width * 5 / 7; x += 6) {
+			cval = colors_bottom[x * 4 /
+				(width * 5 / 7)].u << 2 |
+				colors_bottom[x * 4 /
+				(width * 5 / 7)].v << 12 |
+				colors_bottom[(x + 2) * 4 /
+				(width * 5 / 7)]. u << 22;
+
+			c_mem[x/3] = cval;
+
+			cval = colors_bottom[(x + 2) * 4 /
+				(width * 5 / 7)].v << 2 |
+				colors_bottom[(x + 4) * 4 /
+				(width * 5 / 7)].u << 12 |
+				colors_bottom[(x + 4) * 4 /
+				(width * 5 / 7)].v << 22;
+
+			c_mem[x/3 + 1] = cval;
+		}
+		for (; x < width * 6 / 7; x += 6) {
+			cval = colors_bottom[(x - width * 5 / 7) * 3 /
+				(width / 7) + 4].u << 2 |
+				colors_bottom[(x - width * 5 / 7) * 3 /
+				(width / 7) + 4].v << 12 |
+				colors_bottom[((x + 2) - width * 5 / 7) * 3 /
+				(width / 7) + 4].u << 22;
+
+			c_mem[x/3] = cval;
+
+			cval = colors_bottom[((x + 2) - width * 5 / 7) * 3 /
+				(width / 7) + 4].v << 2 |
+				colors_bottom[((x + 4) - width * 5 / 7) * 3 /
+				(width / 7) + 4].u << 12 |
+				colors_bottom[((x + 4) - width * 5 / 7) * 3 /
+				(width / 7) + 4].v << 22;
+			c_mem[x/3 + 1] = cval;
+		}
+		for (; x < width; x += 6) {
+			cval = colors_bottom[7].u << 2 |
+				colors_bottom[7].v << 12 |
+				colors_bottom[7].u << 22;
+			c_mem[x/3] = cval;
+			cval = colors_bottom[7].v << 2 |
+				colors_bottom[7].u << 12 |
+				colors_bottom[7].v << 22;
+			c_mem[x/3 + 1] = cval;
+		}
+		c_mem += (stride/4) * cs / xsub;
+	}
+}
+
+static void fill_tiles_xv15(const struct util_format_info *info,
+			    unsigned char *y_mem, unsigned char *u_mem,
+			    unsigned char *v_mem, uint32_t width,
+			    uint32_t height, uint32_t stride)
+{
+	//const struct util_yuv_info *yuv = &info->yuv;
+	//unsigned int cs = yuv->chroma_stride;
+	unsigned int x;
+	unsigned int y;
+	uint32_t shifter = 0, LumVal = 0;
+	uint32_t lumIndex = 0;
+	uint32_t *Lum;
+	uint32_t *Chrom;
+	uint32_t ChromVal = 0;
+	uint32_t chromIndex = 0;
+
+	/* preparing 10 bit Luma */
+	Lum = (uint32_t *)y_mem;
+	for (y = 0; y < height; ++y) {
+		for (x = 0; x < width; x++) {
+			div_t d  = div(x+y, width);
+			uint32_t rgb32 = 0x00130502 * (d.quot >> 6)
+				+ 0x000a1120 * (d.rem >> 6);
+			struct color_yuv color =
+				MAKE_YUV_601((rgb32 >> 16) & 0xff,
+				(rgb32 >> 8) & 0xff, rgb32 & 0xff);
+			//Checking if we got 3 components to pack in 4 bytes
+			if (shifter == 30) {
+				Lum[lumIndex] = LumVal;
+				lumIndex++; shifter = 0; LumVal = 0;
+			}
+			LumVal  = (LumVal | ((color.y << 2) << shifter));
+			shifter += 10; //10 bit precision
+		}
+		lumIndex = 0; shifter = 0; LumVal = 0;
+		y_mem += stride;
+		Lum = (uint32_t *)y_mem;
+	}
+
+	/* Preparing 10 bit Chroma */
+	Chrom = (uint32_t *)u_mem;
+	for (y = 0; y < height / 2; ++y) {
+		for (x = 0; x < width; x = x + 6) {
+			div_t d  = div(x+(2 * y), width);
+			uint32_t rgb32 = 0x00130502 * (d.quot >> 6)
+				+ 0x000a1120 * (d.rem >> 6);
+			struct color_yuv color =
+				 MAKE_YUV_601((rgb32 >> 16) & 0xff,
+				(rgb32 >> 8) & 0xff, rgb32 & 0xff);
+			div_t d2  = div(x + 2 + (2*y), width);
+			uint32_t rgb32_2 = 0x00130502 * (d2.quot >> 6)
+					+ 0x000a1120 * (d2.rem >> 6);
+			struct color_yuv color_2 =
+				MAKE_YUV_601((rgb32_2 >> 16) & 0xff,
+				(rgb32_2 >> 8) & 0xff, rgb32_2 & 0xff);
+
+			div_t d3  = div(x + 4 + (2*y), width);
+			uint32_t rgb32_3 = 0x00130502 * (d3.quot >> 6)
+					+ 0x000a1120 * (d3.rem >> 6);
+			struct color_yuv color_3 =
+				MAKE_YUV_601((rgb32_3 >> 16) & 0xff,
+				(rgb32_3 >> 8) & 0xff, rgb32_3 & 0xff);
+
+			ChromVal = ((color_2.u << 2) << 20)
+				| ((color.v << 2) << 10) | (color.u << 2);
+			Chrom[chromIndex++] = ChromVal;
+
+			ChromVal = ((color_3.v << 2) << 20)
+				| ((color_3.u << 2) << 10) | (color_2.v << 2);
+			Chrom[chromIndex++] = ChromVal;
+		}
+	chromIndex = 0; ChromVal = 0;
+	u_mem += stride;
+	Chrom = (uint32_t *)u_mem;
+	}
+}
+
+static void fill_tiles_xv20(const struct util_format_info *info,
+			    unsigned char *y_mem, unsigned char *u_mem,
+			    unsigned char *v_mem, uint32_t width,
+			    uint32_t height, uint32_t stride)
+{
+	//const struct util_yuv_info *yuv = &info->yuv;
+	//unsigned int cs = yuv->chroma_stride;
+	unsigned int x;
+	unsigned int y;
+	uint32_t shifter = 0, LumVal = 0;
+	uint32_t lumIndex = 0;
+	uint32_t *Lum;
+	uint32_t *Chrom;
+	uint32_t ChromVal = 0;
+	uint32_t chromIndex = 0;
+
+	/* preparing 10 bit Luma */
+	Lum = (uint32_t *)y_mem;
+	for (y = 0; y < height; ++y) {
+		for (x = 0; x < width; x++) {
+			div_t d  = div(x+y, width);
+			uint32_t rgb32 = 0x00130502 * (d.quot >> 6)
+					+ 0x000a1120 * (d.rem >> 6);
+			struct color_yuv color =
+					MAKE_YUV_601((rgb32 >> 16) & 0xff,
+					(rgb32 >> 8) & 0xff, rgb32 & 0xff);
+			//Checking if we got 3 components to pack in 4 bytes
+			if (shifter == 30) {
+				Lum[lumIndex] = LumVal;
+				lumIndex++; shifter = 0; LumVal = 0;
+			}
+			LumVal  = (LumVal | ((color.y << 2) << shifter));
+			shifter += 10; //10 bit precision
+		}
+		lumIndex = 0; shifter = 0; LumVal = 0;
+		y_mem += stride;
+		Lum = (uint32_t *)y_mem;
+	}
+
+	/* Preparing 10 bit Chroma */
+	Chrom = (uint32_t *)u_mem;
+	for (y = 0; y < height; ++y) {
+		for (x = 0; x < width; x = x + 6) {
+			div_t d  = div(x+y, width);
+			uint32_t rgb32 = 0x00130502 * (d.quot >> 6)
+					+ 0x000a1120 * (d.rem >> 6);
+			struct color_yuv color =
+					MAKE_YUV_601((rgb32 >> 16) & 0xff,
+					(rgb32 >> 8) & 0xff, rgb32 & 0xff);
+			div_t d2  = div(x + 2 + y, width);
+			uint32_t rgb32_2 = 0x00130502 * (d2.quot >> 6)
+						+ 0x000a1120 * (d2.rem >> 6);
+			struct color_yuv color_2 =
+					MAKE_YUV_601((rgb32_2 >> 16) & 0xff,
+				       (rgb32_2 >> 8) & 0xff, rgb32_2 & 0xff);
+			div_t d3  = div(x + 4 + y, width);
+			uint32_t rgb32_3 = 0x00130502 * (d3.quot >> 6)
+					+ 0x000a1120 * (d3.rem >> 6);
+			struct color_yuv color_3 =
+					MAKE_YUV_601((rgb32_3 >> 16) & 0xff,
+					(rgb32_3 >> 8) & 0xff, rgb32_3 & 0xff);
+
+			ChromVal = ((color_2.u << 2) << 20)
+				| ((color.v << 2) << 10) | (color.u << 2);
+			Chrom[chromIndex++] = ChromVal;
+
+			ChromVal = ((color_3.v << 2) << 20)
+				| ((color_3.u << 2) << 10) | (color_2.v << 2);
+			Chrom[chromIndex++] = ChromVal;
+		}
+		chromIndex = 0; ChromVal = 0;
+		u_mem += stride;
+		Chrom = (uint32_t *)u_mem;
+	}
+}
+
 static void fill_smpte_yuv_packed(const struct util_yuv_info *yuv, void *mem,
 				  unsigned int width, unsigned int height,
 				  unsigned int stride)
@@ -1457,6 +1777,13 @@ static void fill_smpte(const struct util_format_info *info, void *planes[3],
 						   planes[1], width, height,
 						   stride);
 
+	case DRM_FORMAT_XV20:
+		return fill_smpte_yuv_semiplanar_10b(&info->yuv, planes[0], planes[1],
+					     width, height, stride);
+	case DRM_FORMAT_XV15:
+		return fill_smpte_yuv_semiplanar_10b(&info->yuv, planes[0], planes[1],
+					     width, height, stride);
+
 	case DRM_FORMAT_YUV420:
 	case DRM_FORMAT_YUV422:
 	case DRM_FORMAT_YUV444:
@@ -1881,6 +2208,14 @@ static void fill_tiles(const struct util_format_info *info, void *planes[3],
 	case DRM_FORMAT_NV30:
 		return fill_tiles_yuv_planar_10bpp(info, planes[0], planes[1],
 						   width, height, stride);
+
+	case DRM_FORMAT_XV20:
+		return fill_tiles_xv20(info, planes[0], planes[1], planes[1],
+				       width, height, stride);
+
+	case DRM_FORMAT_XV15:
+		return fill_tiles_xv15(info, planes[0], planes[1], planes[2],
+				       width, height, stride);
 
 	case DRM_FORMAT_YUV420:
 	case DRM_FORMAT_YUV422:
